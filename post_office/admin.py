@@ -279,7 +279,7 @@ class EmailTemplateAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description', 'subject')
     fieldsets = [
         (None, {
-            'fields': ('name', 'description'),
+            'fields': ('name', 'description', 'is_active'),
         }),
         (_("Default Content"), {
             'fields': ('subject', 'content', 'html_content'),

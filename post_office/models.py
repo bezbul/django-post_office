@@ -269,6 +269,7 @@ class EmailTemplate(models.Model):
         default='', blank=True)
     default_template = models.ForeignKey('self', related_name='translated_templates',
         null=True, default=None, verbose_name=_('Default template'), on_delete=models.CASCADE)
+    is_active = models.BooleanField(default=True)
 
     objects = EmailTemplateManager()
 
