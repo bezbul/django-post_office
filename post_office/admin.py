@@ -90,7 +90,7 @@ class EmailAdmin(admin.ModelAdmin):
     readonly_fields = ['message_id', 'render_subject', 'render_plaintext_body',  'render_html_body']
     date_hierarchy = 'last_updated'
     inlines = [AttachmentInline, LogInline]
-    list_filter = ['status', 'template__language', 'template__name']
+    list_filter = ['status', 'template__language', 'template__name', 'template__is_active']
     formfield_overrides = {
         CommaSeparatedEmailField: {'widget': CommaSeparatedEmailWidget}
     }
