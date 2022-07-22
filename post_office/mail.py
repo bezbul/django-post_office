@@ -101,7 +101,7 @@ def send(recipients=None, sender=None, template=None, context=None, subject='',
          log_level=None, commit=True, cc=None, bcc=None, language='',
          backend=''):
     email_template = get_email_template(template)
-    if not email_template.is_active:
+    if not email_template.skip:
         return
 
     try:
@@ -175,7 +175,7 @@ def send_many(kwargs_list):
     Currently send_many() can't be used to send emails with priority = 'now'.
     """
     for kwargs in kwargs_list:
-        if not get_email_template(kwargs["template"]).is_active:
+        if not get_email_template(kwargs["template"]).skip:
             kwargs_list.remove(kwargs)
 
     emails = [send(commit=False, **kwargs) for kwargs in kwargs_list]
@@ -320,6 +320,7 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
     # and 2 means log both successes and failures
     if log_level >= 1:
 
+	# save failed emails to logs
         logs = []
         for (email, exception) in failed_emails:
             logs.append(
@@ -327,9 +328,21 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
                     message=str(exception),
                     exception_type=type(exception).__name__)
             )
+        if logs:
+           Log.objects.bulk_create(logs)
+ 
+	# save skipped emails to logs
+        logs = []
+        for (email, exception) in skipped_emails:
+            logs.append(
+                Log(email=email, status=STATUS.skipped,
+                    message=str(exception),
+                    exception_type=type(exception).__name__)
+            )
 
         if logs:
             Log.objects.bulk_create(logs)
+
 
     if log_level == 2:
 
