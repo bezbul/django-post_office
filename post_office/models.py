@@ -274,7 +274,7 @@ class EmailTemplate(models.Model):
         default='', blank=True)
     default_template = models.ForeignKey('self', related_name='translated_templates',
         null=True, default=None, verbose_name=_('Default template'), on_delete=models.CASCADE)
-    skip = models.BooleanField(default=True)
+    skip = models.BooleanField(default=False)
 
     objects = EmailTemplateManager()
 

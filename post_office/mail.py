@@ -1,5 +1,3 @@
-import sys
-
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import connection as db_connection
@@ -100,10 +98,6 @@ def send(recipients=None, sender=None, template=None, context=None, subject='',
          priority=None, attachments=None, render_on_delivery=False,
          log_level=None, commit=True, cc=None, bcc=None, language='',
          backend=''):
-    email_template = get_email_template(template)
-    if not email_template.skip:
-        return
-
     try:
         recipients = parse_emails(recipients)
     except ValidationError as e:
@@ -175,7 +169,7 @@ def send_many(kwargs_list):
     Currently send_many() can't be used to send emails with priority = 'now'.
     """
     for kwargs in kwargs_list:
-        if not get_email_template(kwargs["template"]).skip:
+        if get_email_template(kwargs["template"]).skip:
             kwargs_list.remove(kwargs)
 
     emails = [send(commit=False, **kwargs) for kwargs in kwargs_list]
@@ -207,7 +201,7 @@ def send_queued(processes=1, log_level=None):
     Sends out all queued mails that has scheduled_time less than now or None
     """
     queued_emails = get_queued()
-    total_sent, total_failed, total_requeued = 0, 0, 0
+    total_sent, total_failed, total_requeued, total_skipped = 0, 0, 0, 0
     total_email = len(queued_emails)
 
     logger.info('Started sending %s emails with %s processes.' %
@@ -222,7 +216,7 @@ def send_queued(processes=1, log_level=None):
             processes = total_email
 
         if processes == 1:
-            total_sent, total_failed, total_requeued = _send_bulk(
+            total_sent, total_failed, total_requeued, total_skipped = _send_bulk(
                 emails=queued_emails,
                 uses_multiprocessing=False,
                 log_level=log_level,
@@ -237,13 +231,14 @@ def send_queued(processes=1, log_level=None):
             total_sent = sum(result[0] for result in results)
             total_failed = sum(result[1] for result in results)
             total_requeued = [result[2] for result in results]
+            total_skipped = [result[3] for result in results]
 
     logger.info(
-        '%s emails attempted, %s sent, %s failed, %s requeued',
-        total_email, total_sent, total_failed, total_requeued,
+        '%s emails attempted, %s sent, %s failed, %s requeued, %s skipped',
+        total_email, total_sent, total_failed, total_requeued, total_skipped,
     )
 
-    return total_sent, total_failed, total_requeued
+    return total_sent, total_failed, total_requeued, total_skipped
 
 
 def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
@@ -258,11 +253,16 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
 
     sent_emails = []
     failed_emails = []  # This is a list of two tuples (email, exception)
+    skipped_emails = []
     email_count = len(emails)
 
     logger.info('Process started, sending %s emails' % email_count)
 
     def send(email):
+        if not email.template.skip:
+            skipped_emails.append(email)
+            return
+
         try:
             email.dispatch(log_level=log_level, commit=False,
                            disconnect_after_delivery=False)
@@ -298,6 +298,7 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
 
     # Update statuses and conditionally requeue failed emails
     num_failed, num_requeued = 0, 0
+    num_skipped = len(skipped_emails)
     max_retries = get_max_retries()
     scheduled_time = timezone.now() + get_retry_timedelta()
     emails_failed = [email for email, _ in failed_emails]
@@ -319,8 +320,7 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
     # If log level is 0, log nothing, 1 logs only sending failures
     # and 2 means log both successes and failures
     if log_level >= 1:
-
-	# save failed emails to logs
+        # save failed emails to logs
         logs = []
         for (email, exception) in failed_emails:
             logs.append(
@@ -328,24 +328,18 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
                     message=str(exception),
                     exception_type=type(exception).__name__)
             )
-        if logs:
-           Log.objects.bulk_create(logs)
- 
-	# save skipped emails to logs
-        logs = []
-        for (email, exception) in skipped_emails:
+
+        # save skipped emails to logs
+        for (email) in skipped_emails:
             logs.append(
                 Log(email=email, status=STATUS.skipped,
-                    message=str(exception),
-                    exception_type=type(exception).__name__)
+                    message='Template of email %s was skipped' % email.id)
             )
 
         if logs:
             Log.objects.bulk_create(logs)
 
-
     if log_level == 2:
-
         logs = []
         for email in sent_emails:
             logs.append(Log(email=email, status=STATUS.sent))
@@ -354,11 +348,11 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
             Log.objects.bulk_create(logs)
 
     logger.info(
-        'Process finished, %s attempted, %s sent, %s failed, %s requeued',
-        email_count, len(sent_emails), num_failed, num_requeued,
+        'Process finished, %s attempted, %s sent, %s failed, %s requeued, %s skipped',
+        email_count, len(sent_emails), num_failed, num_requeued, num_skipped,
     )
 
-    return len(sent_emails), num_failed, num_requeued
+    return len(sent_emails), num_failed, num_requeued, num_skipped
 
 
 def send_queued_mail_until_done(lockfile=default_lockfile, processes=1, log_level=None):
