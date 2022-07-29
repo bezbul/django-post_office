@@ -25,7 +25,7 @@ logger = setup_loghandlers("INFO")
 
 
 PRIORITY = namedtuple('PRIORITY', 'low medium high now')._make(range(4))
-STATUS = namedtuple('STATUS', 'sent failed queued requeued')._make(range(4))
+STATUS = namedtuple('STATUS', 'sent failed queued requeued skipped')._make(range(5))
 
 
 class Email(models.Model):
@@ -36,7 +36,8 @@ class Email(models.Model):
     PRIORITY_CHOICES = [(PRIORITY.low, _("low")), (PRIORITY.medium, _("medium")),
                         (PRIORITY.high, _("high")), (PRIORITY.now, _("now"))]
     STATUS_CHOICES = [(STATUS.sent, _("sent")), (STATUS.failed, _("failed")),
-                      (STATUS.queued, _("queued")), (STATUS.requeued, _("requeued"))]
+                      (STATUS.queued, _("queued")), (STATUS.requeued, _("requeued")),
+                      (STATUS.skipped, _("skipped"))]
 
     from_email = models.CharField(_("Email From"), max_length=254,
                                   validators=[validate_email_with_name])
@@ -225,7 +226,11 @@ class Log(models.Model):
     A model to record sending email sending activities.
     """
 
-    STATUS_CHOICES = [(STATUS.sent, _("sent")), (STATUS.failed, _("failed"))]
+    STATUS_CHOICES = [
+        (STATUS.sent, _("sent")),
+        (STATUS.failed, _("failed")),
+        (STATUS.skipped, _("skipped"))
+    ]
 
     email = models.ForeignKey(Email, editable=False, related_name='logs',
                               verbose_name=_('Email address'), on_delete=models.CASCADE)
@@ -269,6 +274,7 @@ class EmailTemplate(models.Model):
         default='', blank=True)
     default_template = models.ForeignKey('self', related_name='translated_templates',
         null=True, default=None, verbose_name=_('Default template'), on_delete=models.CASCADE)
+    skip = models.BooleanField(default=False)
 
     objects = EmailTemplateManager()
 

@@ -90,7 +90,7 @@ class EmailAdmin(admin.ModelAdmin):
     readonly_fields = ['message_id', 'render_subject', 'render_plaintext_body',  'render_html_body']
     date_hierarchy = 'last_updated'
     inlines = [AttachmentInline, LogInline]
-    list_filter = ['status', 'template__language', 'template__name']
+    list_filter = ['status', 'template__language', 'template__name', 'template__skip']
     formfield_overrides = {
         CommaSeparatedEmailField: {'widget': CommaSeparatedEmailWidget}
     }
@@ -279,7 +279,7 @@ class EmailTemplateAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description', 'subject')
     fieldsets = [
         (None, {
-            'fields': ('name', 'description'),
+            'fields': ('name', 'description', 'skip'),
         }),
         (_("Default Content"), {
             'fields': ('subject', 'content', 'html_content'),

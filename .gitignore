@@ -39,3 +39,8 @@ ghostdriver.log
 .mypy_cache
 
 post_office_attachments
+.venv/
+pyproject.toml
+poetry.lock
+src/
+.DS_Store
