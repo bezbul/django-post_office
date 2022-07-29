@@ -261,6 +261,7 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
     def send(email):
         if not email.template.skip:
             skipped_emails.append(email)
+            logger.debug('Email #%d was skipped' % email.id)
             return
 
         try:
